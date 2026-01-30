@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Resumes | AIRS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Smooth Background */
+        body {
+            background-color: #0f172a;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Glassmorphism Card */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Animations */
+        @keyframes pulse-border {
+            0% { border-color: rgba(96, 165, 250, 0.5); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.2); }
+            70% { border-color: rgba(96, 165, 250, 1); box-shadow: 0 0 0 10px rgba(96, 165, 250, 0); }
+            100% { border-color: rgba(96, 165, 250, 0.5); box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }
+        }
+
+        .drag-active {
+            animation: pulse-border 2s infinite;
+            background: rgba(59, 130, 246, 0.1);
+            border-color: #60a5fa !important;
+        }
+
+        /* Loading Scan Line */
+        .scan-line {
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #60a5fa, transparent);
+            position: absolute;
+            animation: scan 1.5s linear infinite;
+            display: none;
+        }
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+
+<div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2"></div>
+
+<div class="glass-panel w-full max-w-lg rounded-2xl p-8 relative overflow-hidden transition-all duration-300">
+
+    <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 mb-4">
+            <i class="fas fa-file-pdf text-xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-white mb-2">Upload Candidate Resume</h1>
+        <p class="text-gray-400 text-sm">AI will analyze, vectorise, and index this document instantly.</p>
+    </div>
+
+    <div id="drop-zone" class="relative border-2 border-dashed border-gray-600 rounded-xl p-10 text-center cursor-pointer transition-all duration-300 hover:border-gray-400 hover:bg-white/5 group">
+
+        <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept=".pdf">
+
+        <div id="upload-prompt" class="transition-opacity duration-300">
+            <i class="fas fa-cloud-upload-alt text-5xl text-gray-500 mb-4 group-hover:text-blue-400 transition-colors"></i>
+            <p class="text-gray-300 font-medium">Click or Drag PDF here</p>
+            <p class="text-xs text-gray-500 mt-2">Maximum file size 10MB</p>
+        </div>
+
+        <div id="scanner" class="absolute inset-0 hidden bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center rounded-xl z-20">
+            <div class="relative w-full h-full">
+                <div class="scan-line block"></div>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <i class="fas fa-cog fa-spin text-3xl text-blue-400 mb-3"></i>
+                    <span class="text-blue-200 font-mono text-sm tracking-wider">VECTORIZING...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="file-info" class="mt-6 hidden bg-white/5 rounded-lg p-4 flex items-center justify-between border border-white/10">
+        <div class="flex items-center gap-3">
+            <i class="fas fa-file-pdf text-red-400 text-xl"></i>
+            <div>
+                <p id="filename" class="text-sm text-gray-200 font-medium truncate max-w-[200px]">resume.pdf</p>
+                <p id="filesize" class="text-xs text-gray-500">2.4 MB</p>
+            </div>
+        </div>
+        <i class="fas fa-check-circle text-green-400 text-xl"></i>
+    </div>
+
+</div>
+
+<script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const scanner = document.getElementById('scanner');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const fileInfo = document.getElementById('file-info');
+        const filenameDisplay = document.getElementById('filename');
+        const filesizeDisplay = document.getElementById('filesize');
+
+        // Drag & Drop Visuals
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-active');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-active');
+            });
+        });
+
+        // Handle File Selection
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        dropZone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+
+        async function handleFiles(files) {
+            if (files.length === 0) return;
+
+            const file = files[0];
+            if (file.type !== 'application/pdf') {
+                showToast('Only PDF files are allowed', 'error');
+                return;
+            }
+
+            // Start Animation
+            startLoading();
+
+            // Prepare Upload
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // Call Java Backend
+                const response = await fetch('/api/resumecontroller/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    showSuccessState(file);
+                    showToast('Resume uploaded and vectorized successfully!', 'success');
+                } else {
+                    throw new Error('Upload failed');
+                }
+            } catch (error) {
+                showToast('Server Error: Could not process file.', 'error');
+                resetUI();
+            }
+        }
+
+        // --- UI Helper Functions ---
+
+        function startLoading() {
+            uploadPrompt.classList.add('opacity-0');
+            scanner.classList.remove('hidden');
+            fileInfo.classList.add('hidden');
+        }
+
+        function showSuccessState(file) {
+            scanner.classList.add('hidden');
+            uploadPrompt.classList.remove('opacity-0');
+
+            // Show the "File Uploaded" card at the bottom
+            filenameDisplay.textContent = file.name;
+            filesizeDisplay.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+            fileInfo.classList.remove('hidden');
+            fileInfo.classList.add('animate-pulse'); // Subtle pulse to catch eye
+            setTimeout(() => fileInfo.classList.remove('animate-pulse'), 1000);
+        }
+
+        function resetUI() {
+            scanner.classList.add('hidden');
+            uploadPrompt.classList.remove('opacity-0');
+        }
+
+        // Toast Notification System
+        function showToast(message, type) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            // Colors based on type
+            const colors = type === 'success'
+                ? 'bg-green-500/10 border-green-500/50 text-green-200'
+                : 'bg-red-500/10 border-red-500/50 text-red-200';
+
+            const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-lg border backdrop-blur-md shadow-lg transition-all duration-500 transform translate-x-10 opacity-0 ${colors}`;
+            toast.innerHTML = `<i class="fas ${icon}"></i> <span class="text-sm font-medium">${message}</span>`;
+
+            container.appendChild(toast);
+
+            // Animate In
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-x-10', 'opacity-0');
+            });
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-x-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

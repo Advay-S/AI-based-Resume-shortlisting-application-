@@ -79,7 +79,7 @@ public void processResume( @RequestParam("file") MultipartFile file){
             full_text 
         FROM candidate_profiles 
         ORDER BY score DESC 
-        LIMIT 1
+        LIMIT 20
     """;
 
             return jdbctemplate.query(sql, (rs, rowNum) -> {

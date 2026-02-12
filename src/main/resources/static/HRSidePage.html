@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter Dashboard | AIRS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0f172a;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%),
+                radial-gradient(at 50% 100%, hsla(225,39%,30%,1) 0, transparent 50%);
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: #e2e8f0;
+        }
+
+        /* Glassmorphism */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(96, 165, 250, 0.3);
+        }
+
+        /* Custom Scrollbar */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="p-6 md:p-12">
+
+<div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+    <div class="lg:col-span-4 space-y-6">
+        <div class="glass rounded-2xl p-6 h-full flex flex-col">
+            <div class="flex items-center gap-3 mb-6 text-blue-400">
+                <i class="fas fa-search-dollar text-2xl"></i>
+                <h1 class="text-xl font-bold text-white">Find Talent</h1>
+            </div>
+
+            <div class="flex-grow flex flex-col">
+                <label class="text-sm text-gray-400 font-semibold mb-2 uppercase tracking-wide">Job Description</label>
+                <textarea id="jdInput"
+                          class="w-full h-64 bg-slate-900/50 border border-gray-700 rounded-xl p-4 text-sm focus:outline-none focus:border-blue-500 transition resize-none mb-4"
+                          placeholder="Paste the Job Description here (e.g., 'Looking for a Senior Java Developer with Spring Boot and AWS experience...')."></textarea>
+            </div>
+
+            <button onclick="performSearch()"
+                    class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/40 transition transform active:scale-95 flex items-center justify-center gap-2">
+                <span id="btnText">Run Analysis</span>
+                <i id="btnIcon" class="fas fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="lg:col-span-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-white">Candidates <span id="resultCount" class="text-sm font-normal text-gray-500 ml-2 hidden">(0 found)</span></h2>
+            <div class="flex gap-2">
+                <button onclick="clearResults()" class="text-xs text-gray-400 hover:text-white px-3 py-1 rounded bg-white/5 hover:bg-white/10 transition">Clear</button>
+            </div>
+        </div>
+
+        <div id="loader" class="hidden flex flex-col items-center justify-center py-20">
+            <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-blue-300 animate-pulse">AI is comparing profiles...</p>
+        </div>
+
+        <div id="emptyState" class="flex flex-col items-center justify-center py-20 text-gray-600 border-2 border-dashed border-gray-700 rounded-2xl">
+            <i class="fas fa-id-card text-5xl mb-4 opacity-50"></i>
+            <p>Enter a Job Description to see matches.</p>
+        </div>
+
+        <div id="resultsList" class="space-y-4">
+        </div>
+    </div>
+</div>
+
+<script>
+        // --- SEARCH LOGIC ---
+        async function performSearch() {
+            const jd = document.getElementById('jdInput').value;
+            if (!jd.trim()) {
+                showToast("Please enter a Job Description", "error");
+                return;
+            }
+
+            // UI Loading State
+            setLoading(true);
+
+            // ALWAYS use the rank search now
+            const endpoint = '/api/resumecontroller/rankmatch';
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: jd
+                });
+
+                if (!response.ok) throw new Error("Server Error");
+
+                const results = await response.json();
+                renderResults(results);
+
+            } catch (error) {
+                console.error(error);
+                showToast("Failed to fetch matches. Is backend running?", "error");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function renderResults(results) {
+            const list = document.getElementById('resultsList');
+            const empty = document.getElementById('emptyState');
+            const countLabel = document.getElementById('resultCount');
+
+            list.innerHTML = ''; // Clear old
+
+            if (!results || results.length === 0) {
+                empty.classList.remove('hidden');
+                countLabel.classList.add('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            countLabel.textContent = `(${results.length} found)`;
+            countLabel.classList.remove('hidden');
+
+            results.forEach(item => {
+                let score = 0;
+                let text = item;
+
+                // Simple parser for the "Score | Text" format
+                if (item.includes('|')) {
+                    const parts = item.split('|');
+                    const scoreMatch = parts[0].match(/[0-9.]+/);
+                    if(scoreMatch) score = parseFloat(scoreMatch[0]);
+                    text = parts.slice(1).join('|').trim();
+                }
+
+                // Create Card
+                const card = document.createElement('div');
+                card.className = 'glass-card p-6 rounded-xl flex gap-5 items-start animate-fade-in';
+
+                // Color coding for score
+                let scoreColor = 'text-gray-400';
+                let ringColor = 'border-gray-600';
+
+                // > 75% = Green, > 50% = Yellow, else Gray
+                if(score > 0.75) { scoreColor = 'text-green-400'; ringColor = 'border-green-500'; }
+                else if(score > 0.5) { scoreColor = 'text-yellow-400'; ringColor = 'border-yellow-500'; }
+
+                // This section creates the "Small Window" / Score Circle
+                const scoreDisplay = `
+                    <div class="flex-shrink-0 flex flex-col items-center justify-center w-20 h-20 rounded-2xl border ${ringColor} bg-white/5 shadow-lg relative group overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition"></div>
+                        <span class="text-xs text-gray-400 uppercase tracking-widest mb-1">Match</span>
+                        <span class="text-2xl font-bold ${scoreColor}">${(score * 100).toFixed(0)}%</span>
+                    </div>`;
+
+                card.innerHTML = `
+                    ${scoreDisplay}
+                    <div class="flex-grow overflow-hidden">
+                        <h3 class="text-blue-300 font-semibold mb-1 text-sm uppercase tracking-wide">Resume Extract</h3>
+                        <p class="text-gray-300 text-sm leading-relaxed line-clamp-3">${text}</p>
+                        <button class="text-xs text-blue-500 hover:text-blue-400 mt-3 font-medium transition" onclick="this.previousElementSibling.classList.toggle('line-clamp-3')">
+                            Expand / Collapse
+                        </button>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                         <button class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition" title="View PDF">
+                            <i class="fas fa-external-link-alt"></i>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function setLoading(isLoading) {
+            const loader = document.getElementById('loader');
+            const list = document.getElementById('resultsList');
+            const empty = document.getElementById('emptyState');
+            const btnText = document.getElementById('btnText');
+            const btnIcon = document.getElementById('btnIcon');
+
+            if (isLoading) {
+                loader.classList.remove('hidden');
+                list.classList.add('hidden');
+                empty.classList.add('hidden');
+                btnText.textContent = "Analyzing...";
+                btnIcon.classList.remove('fa-arrow-right');
+                btnIcon.classList.add('fa-spinner', 'fa-spin');
+            } else {
+                loader.classList.add('hidden');
+                list.classList.remove('hidden');
+                btnText.textContent = "Run Analysis";
+                btnIcon.classList.remove('fa-spinner', 'fa-spin');
+                btnIcon.classList.add('fa-arrow-right');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('jdInput').value = '';
+            document.getElementById('resultsList').innerHTML = '';
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('resultCount').classList.add('hidden');
+        }
+
+        function showToast(msg, type) {
+            alert(msg);
+        }
+    </script>
+</body>
+</html>

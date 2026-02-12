@@ -32,4 +32,9 @@ public class ResumeController {
         System.out.println("Received Job Description: " + jobDescription);
         return resumerepository.findMatchingResume(jobDescription);
     }
+
+    @PostMapping("/rankmatch")
+    public List<String> rankmatch(@RequestBody String jd){
+        return resumerepository.findMatchingResume(jd);
+    }
 }

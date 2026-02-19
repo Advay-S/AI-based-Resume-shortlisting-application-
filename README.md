@@ -286,19 +286,26 @@ Run the test suite:
 ## 🔧 Configuration Options
 
 ### Adjust Model (in EmbeddingService.java)
-The default model is `all-MiniLM-L6-v2`. To use a different model:
+The default model is `all-MiniLM-L6-v2`. To use a different model, modify the `Criteria` builder in the `EmbeddingService` constructor:
 ```java
-optModelUrls("djl://ai.djl.huggingface.pytorch/sentence-transformers/your-model-name")
+Criteria<String, float[]> criteria = Criteria.builder()
+    .setTypes(String.class, float[].class)
+    .optModelUrls("djl://ai.djl.huggingface.pytorch/sentence-transformers/your-model-name")
+    .optEngine("PyTorch")
+    .optProgress(new ProgressBar())
+    .build();
 ```
 
 ### Adjust Result Limit
-Modify the `LIMIT` in the SQL query in `ResumeRepository.java`:
+Modify the `LIMIT` in the SQL query in `ResumeRepository.java` (line 76-83):
 ```java
 String sql = """
-    SELECT ... 
+    SELECT 
+        1 - (embedding <=> ?::vector) as score, 
+        full_text 
     FROM candidate_profiles 
     ORDER BY score DESC 
-    LIMIT 20  -- Change this value
+    LIMIT 20  -- Change this value to show more/fewer results
 """;
 ```
 

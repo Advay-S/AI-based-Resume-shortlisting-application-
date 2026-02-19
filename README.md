@@ -297,7 +297,7 @@ Criteria<String, float[]> criteria = Criteria.builder()
 ```
 
 ### Adjust Result Limit
-Modify the `LIMIT` in the SQL query in `ResumeRepository.java` (line 76-83):
+Modify the `LIMIT` in the SQL query in `ResumeRepository.java` (in the `findMatchingResume` method):
 ```java
 String sql = """
     SELECT 

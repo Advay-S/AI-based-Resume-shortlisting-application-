@@ -361,4 +361,3 @@ For issues, questions, or suggestions, please open an issue on the [GitHub repos
 
 ---
 
-**Built with ❤️ using Spring Boot, DJL, and PostgreSQL pgvector**
